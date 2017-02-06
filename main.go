@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"errors"
 	"encoding/json"
+	"time"
+	"log"
 )
 
 func getChunkData(f *os.File, bufSize uint32) (string, error) {
@@ -24,7 +26,8 @@ func getChunkData(f *os.File, bufSize uint32) (string, error) {
 func readFile(filename string) {
 	f, err := os.Open(filename)
 	if err != nil {
-		panic(err)
+//		panic(err)
+		log.Panicf("Can't Open file(%s), err(%s)\n", filename, err)
 	}
 	defer f.Close()
 
@@ -37,8 +40,10 @@ func readFile(filename string) {
 	if nil != listHeader.Get(f) {
 		return
 	}
+
 	_, err = f.Seek(int64(listHeader.Size - 12 + 8), os.SEEK_CUR)
 	if nil != err {
+		log.Printf("Can't move file pointer by listheader size, err(%s)\n", err)
 		return
 	}
 
@@ -48,12 +53,29 @@ func readFile(filename string) {
 	}
 
 	gprmcs := GetGPRMC(f, chunkHeader)
-	j, _ := json.Marshal(gprmcs)
-	fmt.Printf("%s \n", j)
+	if j, err := json.Marshal(gprmcs); err != nil {
+		log.Printf("Can't make json output, err(%s)\n", err)
+	} else {
+		fmt.Printf("%s \n", j)
+	}
 }
 
 func main() {
-	if len(os.Args) == 2 {
-		readFile(os.Args[1])
+	date, mon, day := time.Now().Date()
+	d := fmt.Sprintf("%04d%02d%02d", date, mon, day )
+	fpLog, err := os.OpenFile("/home/ub1st/gprmc/log/"+"gprmc_"+d+".log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+	if err != nil {
+		panic(err)
 	}
+	defer fpLog.Close()
+	log.SetOutput(fpLog)
+
+	log.Printf("-------- Start GPRMC Parser. ------------\n")
+	if len(os.Args) == 2 {
+		log.Printf("target file is %s\n", os.Args[1])
+		readFile(os.Args[1])
+	} else {
+		log.Printf("invalid args count(%d). \n", len(os.Args))
+	}
+	log.Printf("-------- End GPRMC Parser.   ------------\n")
 }

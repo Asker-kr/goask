@@ -6,6 +6,7 @@ import (
 	"os"
 	"reflect"
 	"math"
+	"log"
 )
 
 type Gprmc struct {
@@ -85,6 +86,7 @@ func GetGPRMC(f *os.File, h Header) []Gprmc {
 		} else {
 			_, err := f.Seek(int64(chunk.Size), os.SEEK_CUR)
 			if nil != err {
+				log.Printf("Error on file pointer move on chunk, err(%s)\n", err)
 				return gprmcs
 			}
 		}
