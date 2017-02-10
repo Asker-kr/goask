@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"math"
 	"log"
+	"errors"
 )
 
 type Gprmc struct {
@@ -19,26 +20,33 @@ type Gprmc struct {
 	Dir      float64 `json:"direction"`
 }
 
-func makeDateTime(tockens []string) string {
+func makeDateTime(tockens []string) (string, error) {
+	if len(tockens[1]) == 0 || len(tockens[9]) == 0 {
+		return "", errors.New("Invalid DateTime")
+	}
 	t := tockens[1][0:6]
-	d := "20" + tockens[9][4:6] + tockens[9][0:2] + tockens[9][2:4]
-	return d + t
+	d := "20" + tockens[9][4:6] + tockens[9][2:4] + tockens[9][0:2]
+	return d + t, nil
 }
 
-func (g *Gprmc) SetData( idx int, s string) {
+func (g *Gprmc) SetData(idx int, s string) error {
 	g.Idx = idx
 
 	tockens := strings.Split(s, ",")
-	g.DateTime = makeDateTime(tockens)
+	if dt, err := makeDateTime(tockens); err == nil {
+		g.DateTime = dt
+	} else {
+		return err
+	}
 	g.Valid = tockens[2] == "A"
 
 	if y, err := strconv.ParseFloat(tockens[3], 64); err == nil {
-		y = math.Floor(y/100) + (y - math.Floor(y/100)*100)/60
+		y = math.Floor(y/100) + (y-math.Floor(y/100)*100)/60
 		g.Y = y
 	}
 
 	if x, err := strconv.ParseFloat(tockens[5], 64); err == nil {
-		x = math.Floor(x/100) + (x - math.Floor(x/100)*100)/60
+		x = math.Floor(x/100) + (x-math.Floor(x/100)*100)/60
 		g.X = x
 	}
 
@@ -49,6 +57,8 @@ func (g *Gprmc) SetData( idx int, s string) {
 	if dir, err := strconv.ParseFloat(tockens[8], 64); err == nil {
 		g.Dir = dir
 	}
+
+	return nil
 }
 
 func GetGPRMC(f *os.File, h Header) []Gprmc {
@@ -81,8 +91,11 @@ func GetGPRMC(f *os.File, h Header) []Gprmc {
 
 			i++
 			g := Gprmc{}
-			g.SetData( i, s)
-			gprmcs = append(gprmcs, g)
+			if nil != g.SetData(i, s) {
+				return []Gprmc{}
+			} else {
+				gprmcs = append(gprmcs, g)
+			}
 		} else {
 			_, err := f.Seek(int64(chunk.Size), os.SEEK_CUR)
 			if nil != err {
